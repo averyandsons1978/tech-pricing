@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d2b48c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="A&amp;S Pricing">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Avery &amp; Sons Tech Pricing</title>
+<style>
+  :root { --a: #1565c0; --ink: #1d2733; --mut: #5b6878; --line: #dbe2ea; --bg: #eef2f7; --ok: #2e7d32; --warn: #7a5d00; --bad: #c62828; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--a); color: #fff; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 17px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 8px; padding: 7px 11px; font: inherit; font-size: 14px; }
+  .net { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 10px; background: rgba(255,255,255,.2); }
+  .net.off { background: #ffb74d; color: #3e2700; }
+  main { max-width: 640px; margin: 0 auto; padding: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h2 { font-size: 19px; margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 14px; margin: 0 0 14px; }
+  .big { display: block; width: 100%; padding: 16px; border: 0; border-radius: 12px; background: var(--a); color: #fff; font: inherit; font-size: 17px; font-weight: 700; margin-bottom: 10px; text-align: center; text-decoration: none; }
+  .big.ghost { background: #fff; color: var(--a); border: 1.5px solid var(--a); }
+  .big:disabled { opacity: .55; }
+  .opt { display: block; width: 100%; text-align: left; padding: 15px 16px; margin-bottom: 9px; border: 1.5px solid var(--line); border-radius: 11px; background: #fff; font: inherit; font-size: 16px; color: inherit; }
+  .opt:active, .opt.sel { border-color: var(--a); background: #e8f0fb; }
+  .back { background: none; border: 0; color: var(--mut); font: inherit; font-size: 15px; padding: 8px 0; }
+  label { display: block; font-size: 13px; font-weight: 700; margin: 10px 0 4px; }
+  input, textarea, select { width: 100%; padding: 12px; border: 1.5px solid var(--line); border-radius: 9px; font: inherit; font-size: 16px; background: #fff; color: inherit; }
+  textarea { min-height: 64px; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  .tier { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--mut); }
+  .prod { font-size: 16px; font-weight: 650; margin: 3px 0 6px; }
+  .price { font-size: 30px; font-weight: 800; color: var(--a); margin: 0; }
+  .price.sv { font-size: 20px; color: var(--warn); }
+  .qty { font-size: .55em; opacity: .8; }
+  .msg { font-size: 13px; color: var(--warn); margin: 6px 0 0; } .note { font-size: 13px; color: var(--mut); margin: 6px 0 0; }
+  .rec { display: inline-block; background: var(--a); color: #fff; font-size: 11px; font-weight: 800; border-radius: 10px; padding: 2px 8px; margin-left: 6px; vertical-align: 2px; }
+  details { margin-top: 8px; font-size: 14px; } details summary { color: var(--a); font-weight: 700; } details ul { padding-left: 18px; margin: 6px 0 0; }
+  .pill { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 12px; background: #e8f0fb; color: var(--a); font-weight: 700; }
+  .seg { display: flex; background: #e3e9f1; border-radius: 10px; padding: 3px; margin-bottom: 14px; }
+  .seg button { flex: 1; border: 0; background: none; padding: 9px; border-radius: 8px; font: inherit; font-weight: 700; color: var(--mut); }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .bar { margin: 0 0 12px; } .bar .t { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; } .bar .t b { font-weight: 700; }
+  .bar .track { background: #e3e9f1; border-radius: 6px; height: 22px; overflow: hidden; } .bar .fill { height: 100%; background: #90b4e3; border-radius: 6px; }
+  .bar.me .fill { background: var(--a); } .bar.lead .t b::before { content: "🏆 "; }
+  .muted { color: var(--mut); font-size: 13px; } .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #263238; color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 14px; max-width: 90%; z-index: 20; }
+  .tick { display: flex; align-items: center; gap: 10px; font-size: 15px; margin: 10px 0; } .tick input { width: 22px; height: 22px; }
+  .final { font-size: 26px; font-weight: 800; color: var(--a); }
+  .strike { text-decoration: line-through; color: var(--mut); font-size: 15px; }
+  #splash { position: fixed; inset: 0; z-index: 50; background: #d2b48c; display: flex; align-items: center; justify-content: center; transition: opacity .5s ease; }
+  #splash img { width: 100%; max-width: 900px; height: auto; }
+  #splash.go { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="splash"><img src="splash.jpg" alt="Avery & Sons Plumbing + Tankless"></div>
+<header><h1 id="hdr">A&amp;S Tech Pricing</h1><span class="net" id="net">Online</span><button id="homeBtn" hidden>Home</button></header>
+<main id="app"></main>
+<script>
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuaM8mLOrnxvB23WZLzaIbfGSYZC4RbE_mKJDJNbEeNVF_6Fr0VabIEN2TW5Ss3noL/exec';
+// ===== Pricing engine (shared by the Google Apps Script and the website demo) =====
+var Engine = (function () {
+  // Sheet column header -> question ID it checks
+  var COND = { 'Has now': 'now', 'Gas at house': 'gas', 'Current location': 'location',
+    'Install where': 'where', 'House type': 'house', 'Hot water OK': 'hotwater' };
+
+  function s(v) { return String(v == null ? '' : v).trim(); }
+  function lc(v) { return s(v).toLowerCase(); }
+  function num(v) { var n = parseFloat(String(v).replace(/[$,%\s]/g, '')); return isNaN(n) ? 0 : n; }
+  function pct(n) { return (n !== 0 && Math.abs(n) < 1) ? n * 100 : n; }
+
+  function table(rows) {
+    if (!rows || !rows.length) return [];
+    var h = rows[0].map(s);
+    return rows.slice(1).map(function (r) {
+      var o = {}; h.forEach(function (k, i) { if (k) o[k] = r[i]; }); return o;
+    }).filter(function (o) { return Object.keys(o).some(function (k) { return s(o[k]) !== ''; }); });
+  }
+
+  // "a|b|c" matches any of a, b, c. Blank matches anything.
+  function matches(cell, value) {
+    var c = s(cell); if (!c) return true;
+    return c.split('|').some(function (x) { return lc(x) === lc(value); });
+  }
+  // A column is a condition if it's one of the named ones above, or its header is a question ID
+  // (e.g. a "toilet_job" column checks the answer to the toilet_job question).
+  var QIDS = {};
+  function condOk(row, facts) {
+    for (var col in row) {
+      var id = COND[col] || QIDS[lc(col)];
+      if (id && !matches(row[col], facts[id])) return false;
+    }
+    return true;
+  }
+  function typeOk(row, type) { return !s(row['Card type']) || matches(row['Card type'], type); }
+
+  function parse(raw) {
+    var questions = [], byId = {};
+    table(raw.Questions).forEach(function (r) {
+      var id = s(r.ID); if (!id || !s(r.Answer)) return;
+      var q = byId[id];
+      if (!q) { q = byId[id] = { id: id, text: s(r.Question), showIf: '', ifSkipped: '', answers: [] }; questions.push(q); }
+      if (s(r['Show if'])) q.showIf = s(r['Show if']);
+      if (s(r['If skipped'])) q.ifSkipped = s(r['If skipped']);
+      q.answers.push({ label: s(r.Answer), recommends: s(r.Recommends), showIf: s(r['Answer show if']), pause: s(r['Pause message']),
+        mult: s(r['Multiply price']) === '' ? 1 : num(r['Multiply price']) });
+    });
+    QIDS = {}; questions.forEach(function (q) { QIDS[lc(q.id)] = q.id; });
+    var settings = {};
+    table(raw.Settings).forEach(function (r) { if (s(r.Setting)) settings[s(r.Setting)] = r.Value; });
+    return { questions: questions, options: table(raw.Options), addons: table(raw['Add-ons']),
+      rules: table(raw.Rules), included: table(raw.Included || []), settings: settings };
+  }
+
+  // Show if: "gas=Yes" or "now=A|B"; several conditions separated by ";" must all be true.
+  function visible(q, facts) {
+    if (!q.showIf) return true;
+    return q.showIf.split(';').every(function (part) {
+      var i = part.indexOf('='); if (i < 0) return true;
+      var id = s(part.slice(0, i)), want = s(part.slice(i + 1));
+      return want === '' || (facts[id] != null && matches(want, facts[id]));
+    });
+  }
+
+  function resolve(data, given) {
+    var facts = {}, shown = [], missing = null;
+    data.questions.forEach(function (q) {
+      if (!visible(q, facts)) { facts[q.id] = q.ifSkipped; return; }
+      var a = q.answers.filter(function (x) { return lc(x.label) === lc(given[q.id]) && visible(x, facts); })[0];
+      if (!a) { if (!missing) missing = q.text; return; }
+      facts[q.id] = a.label; shown.push({ q: q, a: a });
+    });
+    return { facts: facts, shown: shown, missing: missing };
+  }
+
+  function estimate(data, given) {
+    var r = resolve(data, given || {});
+    if (r.missing) return { ok: false, error: 'Please answer: ' + r.missing };
+    var f = r.facts, st = data.settings;
+    var roundTo = num(st['Round To']) || 1, rangePct = pct(num(st['Range Percent']));
+    function round(v, to) { return Math.round(v / to) * to; }
+
+    var mult = 1, qtyNotes = [], qty = '', quoteText = '';
+    r.shown.forEach(function (x) {
+      if (x.a.mult > 0) mult *= x.a.mult;
+      // "How many toilets?" + "2 (15% off)" -> qty "2 toilets", note "15% off is included in this price"
+      var m = x.q.answers.some(function (a) { return a.mult > 0 && a.mult !== 1; }) && x.q.text.match(/^how many (.+?)\??$/i);
+      if (m) {
+        var p = x.a.label.match(/^(.*?)\s*\((.*)\)\s*$/), n = p ? p[1] : x.a.label, noun = m[1];
+        if (n === '1') noun = noun.replace(/s$/i, '');
+        qty = n + ' ' + noun;
+        if (p) qtyNotes.push(p[2].charAt(0).toUpperCase() + p[2].slice(1) + ' is included in this price');
+      } else if (x.a.mult > 0 && x.a.mult !== 1) qtyNotes.push(x.q.text + ' ' + x.a.label);
+    });
+    var tiers = [];
+    data.options.forEach(function (o) { var t = s(o.Tier); if (t && tiers.indexOf(t) < 0) tiers.push(t); });
+
+    var cards = tiers.map(function (tier) {
+      var row = data.options.filter(function (o) { return s(o.Tier) === tier && condOk(o, f); })[0];
+      if (!row) return null;
+      var type = s(row.Type), price = num(row.Price), priceTo = s(row['Price to']) === '' ? 0 : num(row['Price to']), includes = [], messages = [];
+      data.addons.forEach(function (a) {
+        if ((!s(a.Tier) || matches(a.Tier, tier)) && typeOk(a, type) && condOk(a, f)) {
+          price += num(a.Amount); includes.push(s(a['Add-on']));
+        }
+      });
+      var extra = price - num(row.Price);  // add-ons
+      price *= mult;
+      if (priceTo) priceTo = (priceTo + extra) * mult;
+      var card = { tier: tier, product: s(row.Product), type: type, price: round(price, roundTo),
+        includes: includes, note: s(row.Note), siteVisit: false, range: false };
+      data.rules.forEach(function (ru) {
+        if (!typeOk(ru, type) || !condOk(ru, f)) return;
+        var out = lc(ru.Outcome);
+        if (out === 'site visit') card.siteVisit = true;
+        if (out === 'quote') { card.siteVisit = true; quoteText = 'Photo quote needed'; }
+        else if (out && out !== 'site visit' && out !== 'range') { card.siteVisit = true; quoteText = s(ru.Outcome); }
+        if (out === 'range') card.range = true;
+        if (s(ru.Message) && messages.indexOf(s(ru.Message)) < 0) messages.push(s(ru.Message));
+      });
+      if (card.siteVisit) { card.range = false; delete card.price; }
+      else if (priceTo > price) { card.range = true; card.low = round(price, roundTo); card.high = round(priceTo, roundTo); delete card.price; }
+      else if (card.range) {
+        card.low = round(price * (1 - rangePct / 100), 10);
+        card.high = round(price * (1 + rangePct / 100), 10);
+        delete card.price;
+      }
+      if (qty) card.qty = qty;
+      card.messages = qtyNotes.concat(messages);
+      card.included = data.included.filter(function (it) { return s(it.Item) && typeOk(it, type); })
+        .map(function (it) { return s(it.Item); });
+      return card;
+    }).filter(Boolean);
+
+    if (!cards.length) return { ok: false, error: "We can't price this online. Please give us a call." };
+
+    var recommended = '';
+    r.shown.forEach(function (x) { if (x.a.recommends) recommended = x.a.recommends; });
+    if (recommended && !cards.some(function (c) { return c.tier === recommended; })) {
+      // Recommended tier isn't offered: use the closest tier that is.
+      var want = tiers.indexOf(recommended), best = null;
+      cards.forEach(function (c) { var d = Math.abs(tiers.indexOf(c.tier) - want); if (best === null || d < best.d) best = { d: d, t: c.tier }; });
+      recommended = best ? best.t : '';
+    }
+
+    return { ok: true, quoteText: quoteText, cards: cards, recommended: recommended,
+      answers: r.shown.map(function (x) { return { question: x.q.text, answer: x.a.label }; }) };
+  }
+
+  function publicConfig(data) {
+    var st = data.settings;
+    var heard = s(st['Heard About Options']);
+    return { ok: true, businessName: s(st['Business Name']), title: s(st['Title']), phone: s(st['Phone']),
+      heardAbout: heard ? heard.split('|').map(s).filter(Boolean) : [],
+      privacyUrl: /^https?:\/\//i.test(s(st['Privacy Policy Link'])) ? s(st['Privacy Policy Link']) : '',
+      accentColor: s(st['Accent Color']) || '#1565c0',
+      questions: data.questions.map(function (q) {
+        return { id: q.id, text: q.text, showIf: q.showIf, ifSkipped: q.ifSkipped, answers: q.answers.map(function (a) { return a.label; }), answerShowIf: q.answers.map(function (a) { return a.showIf; }), pause: q.answers.map(function (a) { return a.pause; }) };
+      }) };
+  }
+
+  // Extra info sent with every result (same for the sheet and the demo).
+  function extras(data, now) {
+    var st = data.settings, out = {};
+    out.phone = s(st['Phone']); out.disclaimer = s(st['Disclaimer']); out.thankYou = s(st['Thank You Message']);
+    out.siteVisitText = s(st['Site Visit Text']) || 'Site visit needed';
+    out.bookingUrl = /^https:\/\//i.test(s(st['Booking Link'])) ? s(st['Booking Link']) : '';
+    var days = num(st['Quote Valid Days']);
+    if (days > 0) {
+      var d = new Date(now.getTime() + days * 86400000);
+      var m = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      out.validUntil = m[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+    out.financingText = s(st['Financing Text']);
+    var apr = num(st['Financing APR']), months = Math.round(num(st['Financing Months']));
+    if (out.financingText && months > 0 && s(st['Financing APR']) !== '') {
+      out.financing = { apr: apr, months: months };
+    }
+    return out;
+  }
+  function monthly(price, fin) {
+    if (!fin || !price) return 0;
+    var r = fin.apr / 100 / 12, n = fin.months;
+    return Math.ceil(r ? price * r / (1 - Math.pow(1 + r, -n)) : price / n);
+  }
+
+  function cardText(c, siteVisitText) {
+    var price = c.siteVisit ? (siteVisitText || 'Site visit needed')
+      : c.range ? '$' + c.low + ' - $' + c.high : '$' + c.price;
+    return c.product + ': ' + (c.qty && !c.siteVisit ? c.qty + ' - ' : '') + price;
+  }
+
+  return { parse: parse, estimate: estimate, publicConfig: publicConfig, visible: visible, cardText: cardText, extras: extras, monthly: monthly };
+})();
+// ===== end engine =====
+
+(function () {
+  var app = document.getElementById('app'), K = { cfg: 'as_tech_cfg', data: 'as_tech_data', out: 'as_tech_outbox', recent: 'as_tech_recent' };
+  function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(n) { return '$' + Math.round(Number(n)).toLocaleString('en-US'); }
+  function toast(t) { var d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(function () { d.remove(); }, 3200); }
+  var cfg = load(K.cfg, null), DATA = load(K.data, null), parsed = null, Q = [];
+  function prep() { if (!DATA) return; parsed = Engine.parse(DATA.raw); Q = Engine.publicConfig(parsed).questions; }
+  prep();
+
+  // ---------- network ----------
+  function online() { return navigator.onLine !== false; }
+  function setNet() { var n = document.getElementById('net'); n.textContent = online() ? 'Online' : 'Offline'; n.className = 'net' + (online() ? '' : ' off'); }
+  window.addEventListener('online', function () { setNet(); flush(); refresh(true); });
+  window.addEventListener('offline', setNet); setNet();
+  function withTimeout(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
+  function refresh(silent) {
+    if (!cfg) return Promise.resolve(false);
+    return withTimeout(fetch(SCRIPT_URL + '?mode=tech&pin=' + encodeURIComponent(cfg.pin), { credentials: 'omit' }).then(function (r) { return r.json(); }), 40000)
+      .then(function (j) {
+        if (!j.ok) { if (!silent) toast(j.error || 'Could not update prices.'); return false; }
+        DATA = { raw: j.raw, maxDiscount: j.maxDiscount, leaderboard: j.leaderboard, updated: j.updated }; save(K.data, DATA); prep();
+        if (!silent) toast('Prices updated.'); if (view === 'home') home(); if (view === 'board') board(); return true;
+      }).catch(function () { if (!silent) toast('No connection. Using saved prices.'); return false; });
+  }
+  var flushing = false;
+  function flush() {
+    var out = load(K.out, []); if (flushing || !out.length || !online()) return Promise.resolve();
+    flushing = true;
+    return out.reduce(function (p, item) {
+      return p.then(function () {
+        return withTimeout(fetch(SCRIPT_URL, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(item.body) }).then(function (r) { return r.json(); }), 45000)
+          .then(function (j) {
+            var list = load(K.out, []);
+            if (j.ok) { save(K.out, list.filter(function (x) { return x.id !== item.id; })); var rec = load(K.recent, []); rec.unshift({ at: Date.now(), who: item.label, price: j.quoted || item.price }); save(K.recent, rec.slice(0, 20)); toast('Quote sent: ' + item.label); }
+            else { list.forEach(function (x) { if (x.id === item.id) x.error = j.error || 'Not sent'; }); save(K.out, list); }
+          }).catch(function () {});
+      });
+    }, Promise.resolve()).then(function () { flushing = false; if (view === 'home') home(); if (view === 'outbox') outbox(); });
+  }
+
+  // ---------- views ----------
+  var view = '';
+  document.getElementById('homeBtn').onclick = function () { home(); };
+  function show(v, title, html) { view = v; document.getElementById('hdr').textContent = title; document.getElementById('homeBtn').hidden = (v === 'home' || v === 'setup'); app.innerHTML = html; window.scrollTo(0, 0); }
+
+  function setup(msg, draft) {
+    var dv = draft || cfg || { name: '', pin: '' };
+    show('setup', 'A&S Tech Pricing', '<div class="card"><h2>Set up this phone</h2><p class="sub">Enter your name and the tech PIN from the office. Prices download once and then work without signal.</p>' +
+      (msg ? '<p class="bad">' + esc(msg) + '</p>' : '') +
+      '<label>Your name</label><input id="nm" autocomplete="name" value="' + esc(dv.name) + '" placeholder="First and last name">' +
+      '<label>Tech PIN</label><input id="pin" inputmode="numeric" autocomplete="off" value="' + esc(dv.pin) + '">' +
+      '<div style="height:14px"></div><button class="big" id="go">Download prices</button>' + (DATA ? '<button class="big ghost" id="cancel">Cancel</button>' : '') + '</div>');
+    document.getElementById('go').onclick = function () {
+      var n = document.getElementById('nm').value.trim(), p = document.getElementById('pin').value.trim();
+      if (!n || !p) return toast('Enter your name and the PIN.');
+      if (!online()) return toast('You need a connection the first time.');
+      var b = this; b.disabled = true; b.textContent = 'Downloading prices…';
+      var old = cfg; cfg = { name: n, pin: p };
+      refresh(true).then(function (ok) {
+        if (ok) { save(K.cfg, cfg); toast('Ready. Prices saved on this phone.'); home(); }
+        else { cfg = old; setup('That PIN didn\'t work, or the connection dropped. Check the PIN and try again.', { name: n, pin: p }); }
+      });
+    };
+    var c = document.getElementById('cancel'); if (c) c.onclick = home;
+  }
+
+  function ago(iso) { if (!iso) return 'never'; var d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+  function home() {
+    var out = load(K.out, []), lb = DATA && DATA.leaderboard, me = null;
+    if (lb && lb.ok && lb.week) lb.week.rows.forEach(function (r, i) { if (r.tech.toLowerCase() === cfg.name.toLowerCase()) me = { rank: i + 1, rev: r.revenue }; });
+    show('home', 'A&S Tech Pricing', '<div class="card"><h2>Hi, ' + esc(cfg.name.split(' ')[0]) + '</h2><p class="sub">' +
+      (me ? 'You\'re #' + me.rank + ' this week with ' + money(me.rev) + '.' : 'Ready to price a job.') + '</p>' +
+      '<button class="big" id="nq">New quote</button><button class="big ghost" id="lb">Leaderboard</button>' +
+      (out.length ? '<button class="big ghost" id="ob">Waiting to send (' + out.length + ')</button>' : '') + '</div>' +
+      '<div class="card"><div class="muted">Prices saved ' + esc(ago(DATA && DATA.updated)) + '</div><div style="height:10px"></div>' +
+      '<div class="row"><button class="big ghost" id="up" style="margin:0">Update prices</button><button class="big ghost" id="st" style="margin:0">Settings</button></div></div>');
+    document.getElementById('nq').onclick = function () { startQuote(); };
+    document.getElementById('lb').onclick = function () { board(); };
+    document.getElementById('up').onclick = function () { if (!online()) return toast('No connection right now.'); toast('Updating…'); refresh(false); };
+    document.getElementById('st').onclick = function () { setup(); };
+    var ob = document.getElementById('ob'); if (ob) ob.onclick = outbox;
+  }
+
+  // ----- quote flow -----
+  var A = {}, hist = [], res = null, chosen = null;
+  function factsBefore(i) { var f = {}; for (var k = 0; k < i; k++) { var q = Q[k]; f[q.id] = Engine.visible(q, f) ? A[q.id] : q.ifSkipped; } return f; }
+  function nextIdx(i) { for (var k = i; k < Q.length; k++) if (Engine.visible(Q[k], factsBefore(k))) return k; return -1; }
+  function startQuote() { A = {}; hist = []; ask(nextIdx(0)); }
+  function ask(i) {
+    if (i < 0) return results();
+    var q = Q[i], f = factsBefore(i), html = '<div class="card"><p class="muted" style="margin:0 0 6px">Question ' + (hist.length + 1) + '</p><h2 style="margin-bottom:14px">' + esc(q.text) + '</h2>';
+    q.answers.forEach(function (a, k) { if (q.answerShowIf && q.answerShowIf[k] && !Engine.visible({ showIf: q.answerShowIf[k] }, f)) return; html += '<button class="opt' + (A[q.id] === a ? ' sel' : '') + '" data-k="' + k + '">' + esc(a) + '</button>'; });
+    html += '<button class="back" id="bk">← ' + (hist.length ? 'Back' : 'Cancel') + '</button></div>';
+    show('quote', 'New quote', html);
+    app.querySelectorAll('.opt').forEach(function (b) { b.onclick = function () {
+      var k = +b.dataset.k; A[q.id] = q.answers[k]; hist.push(i);
+      if (q.pause && q.pause[k]) { show('quote', 'New quote', '<div class="card"><h2 class="bad">Customer note</h2><p>' + esc(q.pause[k]) + '</p><button class="big" id="ct">Continue</button></div>'); document.getElementById('ct').onclick = function () { ask(nextIdx(i + 1)); }; }
+      else ask(nextIdx(i + 1));
+    }; });
+    document.getElementById('bk').onclick = function () { if (hist.length) ask(hist.pop()); else home(); };
+  }
+  function shownAnswers() { var o = {}; Q.forEach(function (q, i) { if (Engine.visible(q, factsBefore(i)) && A[q.id] != null) o[q.id] = A[q.id]; }); return o; }
+  function priceHtml(c, disc) {
+    var svt = res.quoteText || (parsed.settings['Site Visit Text'] || 'Site visit needed');
+    if (c.siteVisit) return '<p class="price sv">' + esc(svt) + '</p>';
+    var d = function (n) { return n * (1 - (disc || 0) / 100); }, q = c.qty ? '<span class="qty">' + esc(c.qty) + ':</span> ' : '';
+    return '<p class="price">' + q + (c.range ? money(d(c.low)) + ' – ' + money(d(c.high)) : money(d(c.price))) + '</p>';
+  }
+  function results() {
+    res = Engine.estimate(parsed, shownAnswers());
+    if (!res.ok) { show('quote', 'New quote', '<div class="card"><h2>Can\'t price this</h2><p>' + esc(res.error) + '</p><button class="big" id="bk">Back</button></div>'); document.getElementById('bk').onclick = function () { ask(hist.pop()); }; return; }
+    var ex = Engine.extras(parsed, new Date()), html = '';
+    res.cards.forEach(function (c, i) {
+      html += '<div class="card"><div class="tier">' + esc(c.tier) + (c.tier === res.recommended ? '<span class="rec">Recommended</span>' : '') + '</div><div class="prod">' + esc(c.product) + '</div>' + priceHtml(c, 0) +
+        (c.includes.length ? '<p class="note">Also includes: ' + esc(c.includes.join(', ')) + '</p>' : '') +
+        c.messages.map(function (m) { return '<p class="msg">' + esc(m) + '</p>'; }).join('') + (c.note ? '<p class="note">' + esc(c.note) + '</p>' : '') +
+        (c.included && c.included.length ? '<details><summary>What\'s included</summary><ul>' + c.included.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></details>' : '') +
+        '<div style="height:12px"></div><button class="big" data-i="' + i + '" style="margin:0">Quote this option</button></div>';
+    });
+    html += (ex.validUntil ? '<p class="muted" style="text-align:center">Prices valid until ' + esc(ex.validUntil) + '</p>' : '') +
+      '<button class="back" id="bk">← Back</button>';
+    show('quote', 'Prices', html);
+    app.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { chosen = res.cards[+b.dataset.i]; send(); }; });
+    document.getElementById('bk').onclick = function () { ask(hist.pop()); };
+  }
+  function send() {
+    var c = chosen, maxD = Number(DATA.maxDiscount) || 0;
+    show('quote', 'Send quote', '<div class="card"><div class="tier">' + esc(c.tier) + '</div><div class="prod">' + esc(c.product) + '</div><div id="pv"></div>' +
+      (maxD > 0 && !c.siteVisit ? '<label>Discount % (max ' + maxD + '%)</label><input id="dc" type="number" inputmode="decimal" min="0" max="' + maxD + '" step="1" value="0">' : '') + '</div>' +
+      '<div class="card"><h2 style="font-size:17px">Customer</h2><label>Name</label><input id="cn" autocomplete="off"><label>Phone</label><input id="cp" type="tel" autocomplete="off">' +
+      '<label>Email</label><input id="ce" type="email" autocomplete="off"><label>Service address</label><input id="ca" autocomplete="off">' +
+      '<label>Note for the office (optional)</label><textarea id="nt"></textarea>' +
+      '<div class="tick"><input type="checkbox" id="sc"><label for="sc" style="margin:0;font-weight:400">Email this quote to the customer</label></div>' +
+      '<div class="tick"><input type="checkbox" id="so" checked><label for="so" style="margin:0;font-weight:400">Send to the office (creates the Housecall job)</label></div>' +
+      '<div style="height:6px"></div><button class="big" id="sd">Send</button><button class="back" id="bk">← Back to prices</button></div>');
+    var dc = document.getElementById('dc');
+    function upd() {
+      var d = dc ? Math.max(0, Math.min(Number(dc.value) || 0, maxD)) : 0;
+      document.getElementById('pv').innerHTML = (d && !c.siteVisit ? '<div class="strike">' + priceHtml(c, 0).replace(/<\/?p[^>]*>/g, '') + '</div>' : '') + priceHtml(c, d) + (d ? '<div class="ok" style="font-size:13px">' + d + '% discount</div>' : '');
+      return d;
+    }
+    if (dc) dc.oninput = upd; upd();
+    document.getElementById('ce').oninput = function () { document.getElementById('sc').checked = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.value.trim()); };
+    document.getElementById('bk').onclick = results;
+    document.getElementById('sd').onclick = function () {
+      var contact = { name: val('cn'), phone: val('cp'), email: val('ce'), address: val('ca') }, sc = document.getElementById('sc').checked, so = document.getElementById('so').checked;
+      if (!sc && !so) return toast('Pick at least one: email the customer or send to the office.');
+      if (sc && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) return toast('Enter a valid customer email.');
+      if (so && !contact.name && !contact.phone && !contact.address) return toast('Add the customer\'s name, phone or address for the office.');
+      var d = upd(), id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      var body = { mode: 'techquote', pin: cfg.pin, tech: cfg.name, quoteId: id, answers: shownAnswers(), tier: c.tier, discount: d, contact: contact, sendCustomer: sc, sendOffice: so, note: val('nt') };
+      var label = (contact.name || contact.address || 'Customer') + ' – ' + c.product, price = document.getElementById('pv').innerText.split('\n').pop();
+      var out = load(K.out, []); out.push({ id: id, body: body, label: label, price: price, at: Date.now() }); save(K.out, out);
+      if (online()) { toast('Sending…'); flush(); } else toast('No signal. Saved. It sends automatically when you\'re back online.');
+      home();
+    };
+  }
+  function val(id) { return document.getElementById(id).value.trim(); }
+
+  function outbox() {
+    var out = load(K.out, []);
+    show('outbox', 'Waiting to send', '<div class="card"><h2>Waiting to send</h2><p class="sub">These send automatically when the phone has signal.</p>' +
+      (out.length ? out.map(function (x) { return '<div style="padding:10px 0;border-top:1px solid var(--line)"><b>' + esc(x.label) + '</b><div class="muted">' + new Date(x.at).toLocaleString('en-US') + (x.error ? ' · <span class="bad">' + esc(x.error) + '</span>' : '') + '</div><button class="back" data-del="' + esc(x.id) + '" style="color:var(--bad)">Delete</button></div>'; }).join('') : '<p>Nothing waiting.</p>') +
+      '<button class="big" id="rt">Try sending now</button></div>');
+    document.getElementById('rt').onclick = function () { if (!online()) return toast('Still no signal.'); flush(); };
+    app.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { if (!confirm('Delete this quote without sending it?')) return; save(K.out, load(K.out, []).filter(function (x) { return x.id !== b.dataset.del; })); outbox(); }; });
+  }
+
+  var period = 'week';
+  function board() {
+    var lb = DATA && DATA.leaderboard;
+    if (!lb || !lb.ok) { show('board', 'Leaderboard', '<div class="card"><h2>Leaderboard</h2><p>Not available yet' + (lb && lb.error ? ': ' + esc(lb.error) : '') + '. Tap Update prices on the home screen when you have signal.</p></div>'); return; }
+    var P = lb[period], rows = P.rows, max = Math.max.apply(null, rows.map(function (r) { return r.revenue; }).concat([1]));
+    var label = { week: 'This week (Wed–Tue)', month: 'This month', year: 'This year' }[period];
+    show('board', 'Leaderboard', '<div class="seg">' + ['week', 'month', 'year'].map(function (p) { return '<button data-p="' + p + '" class="' + (p === period ? 'on' : '') + '">' + p[0].toUpperCase() + p.slice(1) + '</button>'; }).join('') + '</div>' +
+      '<div class="card"><h2>' + label + '</h2><p class="sub">Revenue since ' + esc(P.start) + ' · updated ' + esc(lb.asOf) + '</p>' +
+      (rows.length ? rows.map(function (r, i) {
+        var me = cfg && r.tech.toLowerCase() === cfg.name.toLowerCase();
+        return '<div class="bar' + (me ? ' me' : '') + (i === 0 && r.revenue > 0 ? ' lead' : '') + '"><div class="t"><b>' + esc(r.tech) + (me ? ' (you)' : '') + '</b><span>' + money(r.revenue) + ' · ' + r.jobs + ' job' + (r.jobs === 1 ? '' : 's') + '</span></div>' +
+          '<div class="track"><div class="fill" style="width:' + Math.max(2, Math.round(r.revenue / max * 100)) + '%"></div></div></div>';
+      }).join('') : '<p>No jobs logged yet for this period.</p>') + '</div>');
+    app.querySelectorAll('[data-p]').forEach(function (b) { b.onclick = function () { period = b.dataset.p; board(); }; });
+  }
+
+  // ---------- start ----------
+  if (!cfg || !DATA) setup(); else { home(); if (online()) { refresh(true); flush(); } }
+  setTimeout(function () { var sp = document.getElementById('splash'); sp.className = 'go'; setTimeout(function () { sp.remove(); }, 600); }, 1800);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+})();
+</script>
+</body>
+</html>
