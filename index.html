@@ -58,6 +58,10 @@
   #splash { position: fixed; inset: 0; z-index: 50; background: #d2b48c; display: flex; align-items: center; justify-content: center; transition: opacity .5s ease; }
   #splash img { width: 100%; max-width: 900px; height: auto; }
   #splash.go { opacity: 0; pointer-events: none; }
+  .steps { margin: 4px 0 12px; padding-left: 20px; } .steps li { margin: 0 0 8px; line-height: 1.45; }
+  .tip { background: #fff8e1; border-left: 4px solid #f0b400; border-radius: 8px; padding: 10px 12px; font-size: 14px; margin: 0 0 12px; }
+  .crumb { font-size: 12px; color: var(--mut); margin: 0 0 6px; }
+  .dx { font-size: 15px; margin: 0 0 6px; } .rcard { border: 2px solid var(--a); }
 </style>
 </head>
 <body>
@@ -336,11 +340,12 @@ var Engine = (function () {
     if (lb && lb.ok && lb.week) lb.week.rows.forEach(function (r, i) { if (r.tech.toLowerCase() === cfg.name.toLowerCase()) me = { rank: i + 1, rev: r.revenue }; });
     show('home', 'A&S Tech Pricing', '<div class="card"><h2>Hi, ' + esc(cfg.name.split(' ')[0]) + '</h2><p class="sub">' +
       (me ? 'You\'re #' + me.rank + ' this week with ' + money(me.rev) + '.' : 'Ready to price a job.') + '</p>' +
-      '<button class="big" id="nq">New quote</button><button class="big ghost" id="lb">Leaderboard</button>' +
+      '<button class="big" id="nq">New quote</button><button class="big ghost" id="ts">Troubleshoot</button><button class="big ghost" id="lb">Leaderboard</button>' +
       (out.length ? '<button class="big ghost" id="ob">Waiting to send (' + out.length + ')</button>' : '') + '</div>' +
       '<div class="card"><div class="muted">Prices saved ' + esc(ago(DATA && DATA.updated)) + '</div><div style="height:10px"></div>' +
       '<div class="row"><button class="big ghost" id="up" style="margin:0">Update prices</button><button class="big ghost" id="st" style="margin:0">Settings</button></div></div>');
     document.getElementById('nq').onclick = function () { startQuote(); };
+    document.getElementById('ts').onclick = function () { tsStart(); };
     document.getElementById('lb').onclick = function () { board(); };
     document.getElementById('up').onclick = function () { if (!online()) return toast('No connection right now.'); toast('Updating…'); refresh(false); };
     document.getElementById('st').onclick = function () { setup(); };
@@ -348,12 +353,13 @@ var Engine = (function () {
   }
 
   // ----- quote flow -----
-  var A = {}, hist = [], res = null, chosen = null;
+  var A = {}, hist = [], res = null, chosen = null, PRE = {}, TSC = null, sendBack = null;
   function factsBefore(i) { var f = {}; for (var k = 0; k < i; k++) { var q = Q[k]; f[q.id] = Engine.visible(q, f) ? A[q.id] : q.ifSkipped; } return f; }
   function nextIdx(i) { for (var k = i; k < Q.length; k++) if (Engine.visible(Q[k], factsBefore(k))) return k; return -1; }
-  function startQuote() { A = {}; hist = []; ask(nextIdx(0)); }
+  function startQuote() { A = {}; hist = []; PRE = {}; TSC = null; ask(nextIdx(0)); }
   function ask(i) {
     if (i < 0) return results();
+    if (PRE[Q[i].id] != null) { A[Q[i].id] = PRE[Q[i].id]; return ask(nextIdx(i + 1)); }
     var q = Q[i], f = factsBefore(i), html = '<div class="card"><p class="muted" style="margin:0 0 6px">Question ' + (hist.length + 1) + '</p><h2 style="margin-bottom:14px">' + esc(q.text) + '</h2>';
     q.answers.forEach(function (a, k) { if (q.answerShowIf && q.answerShowIf[k] && !Engine.visible({ showIf: q.answerShowIf[k] }, f)) return; html += '<button class="opt' + (A[q.id] === a ? ' sel' : '') + '" data-k="' + k + '">' + esc(a) + '</button>'; });
     html += '<button class="back" id="bk">← ' + (hist.length ? 'Back' : 'Cancel') + '</button></div>';
@@ -363,11 +369,11 @@ var Engine = (function () {
       if (q.pause && q.pause[k]) { show('quote', 'New quote', '<div class="card"><h2 class="bad">Customer note</h2><p>' + esc(q.pause[k]) + '</p><button class="big" id="ct">Continue</button></div>'); document.getElementById('ct').onclick = function () { ask(nextIdx(i + 1)); }; }
       else ask(nextIdx(i + 1));
     }; });
-    document.getElementById('bk').onclick = function () { if (hist.length) ask(hist.pop()); else home(); };
+    document.getElementById('bk').onclick = function () { if (hist.length) ask(hist.pop()); else if (TSC) tsResult(); else home(); };
   }
   function shownAnswers() { var o = {}; Q.forEach(function (q, i) { if (Engine.visible(q, factsBefore(i)) && A[q.id] != null) o[q.id] = A[q.id]; }); return o; }
   function priceHtml(c, disc) {
-    var svt = res.quoteText || (parsed.settings['Site Visit Text'] || 'Site visit needed');
+    var svt = (res && res.quoteText) || (parsed.settings['Site Visit Text'] || 'Site visit needed');
     if (c.siteVisit) return '<p class="price sv">' + esc(svt) + '</p>';
     var d = function (n) { return n * (1 - (disc || 0) / 100); }, q = c.qty ? '<span class="qty">' + esc(c.qty) + ':</span> ' : '';
     return '<p class="price">' + q + (c.range ? money(d(c.low)) + ' – ' + money(d(c.high)) : money(d(c.price))) + '</p>';
@@ -376,6 +382,7 @@ var Engine = (function () {
     res = Engine.estimate(parsed, shownAnswers());
     if (!res.ok) { show('quote', 'New quote', '<div class="card"><h2>Can\'t price this</h2><p>' + esc(res.error) + '</p><button class="big" id="bk">Back</button></div>'); document.getElementById('bk').onclick = function () { ask(hist.pop()); }; return; }
     var ex = Engine.extras(parsed, new Date()), html = '';
+    if (TSC) html += '<p class="muted" style="margin:0 0 8px">From the troubleshooting guide: ' + esc(TSC.dx) + '</p>' + (TSC.card ? repairCardHtml(true) : '');
     res.cards.forEach(function (c, i) {
       html += '<div class="card"><div class="tier">' + esc(c.tier) + (c.tier === res.recommended ? '<span class="rec">Recommended</span>' : '') + '</div><div class="prod">' + esc(c.product) + '</div>' + priceHtml(c, 0) +
         (c.includes.length ? '<p class="note">Also includes: ' + esc(c.includes.join(', ')) + '</p>' : '') +
@@ -386,8 +393,9 @@ var Engine = (function () {
     html += (ex.validUntil ? '<p class="muted" style="text-align:center">Prices valid until ' + esc(ex.validUntil) + '</p>' : '') +
       '<button class="back" id="bk">← Back</button>';
     show('quote', 'Prices', html);
-    app.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { chosen = res.cards[+b.dataset.i]; send(); }; });
-    document.getElementById('bk').onclick = function () { ask(hist.pop()); };
+    app.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { chosen = res.cards[+b.dataset.i]; sendBack = results; send(); }; });
+    if (TSC) bindRepair(results);
+    document.getElementById('bk').onclick = function () { if (hist.length) ask(hist.pop()); else if (TSC) tsResult(); else home(); };
   }
   function send() {
     var c = chosen, maxD = Number(DATA.maxDiscount) || 0;
@@ -398,7 +406,7 @@ var Engine = (function () {
       '<label>Note for the office (optional)</label><textarea id="nt"></textarea>' +
       '<div class="tick"><input type="checkbox" id="sc"><label for="sc" style="margin:0;font-weight:400">Email this quote to the customer</label></div>' +
       '<div class="tick"><input type="checkbox" id="so" checked><label for="so" style="margin:0;font-weight:400">Send to the office (creates the Housecall job)</label></div>' +
-      '<div style="height:6px"></div><button class="big" id="sd">Send</button><button class="back" id="bk">← Back to prices</button></div>');
+      '<div style="height:6px"></div><button class="big" id="sd">Send</button><button class="back" id="bk">← Back</button></div>');
     var dc = document.getElementById('dc');
     function upd() {
       var d = dc ? Math.max(0, Math.min(Number(dc.value) || 0, maxD)) : 0;
@@ -407,7 +415,7 @@ var Engine = (function () {
     }
     if (dc) dc.oninput = upd; upd();
     document.getElementById('ce').oninput = function () { document.getElementById('sc').checked = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.value.trim()); };
-    document.getElementById('bk').onclick = results;
+    document.getElementById('bk').onclick = function () { (sendBack || results)(); };
     document.getElementById('sd').onclick = function () {
       var contact = { name: val('cn'), phone: val('cp'), email: val('ce'), address: val('ca') }, sc = document.getElementById('sc').checked, so = document.getElementById('so').checked;
       if (!sc && !so) return toast('Pick at least one: email the customer or send to the office.');
@@ -415,12 +423,224 @@ var Engine = (function () {
       if (so && !contact.name && !contact.phone && !contact.address) return toast('Add the customer\'s name, phone or address for the office.');
       var d = upd(), id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
       var body = { mode: 'techquote', pin: cfg.pin, tech: cfg.name, quoteId: id, answers: shownAnswers(), tier: c.tier, discount: d, contact: contact, sendCustomer: sc, sendOffice: so, note: val('nt') };
+      if (TSC) body.troubleshoot = { repair: TSC.repair, findings: TSC.findings, warnings: TSC.warn };
       var label = (contact.name || contact.address || 'Customer') + ' – ' + c.product, price = document.getElementById('pv').innerText.split('\n').pop();
       var out = load(K.out, []); out.push({ id: id, body: body, label: label, price: price, at: Date.now() }); save(K.out, out);
       if (online()) { toast('Sending…'); flush(); } else toast('No signal. Saved. It sends automatically when you\'re back online.');
       home();
     };
   }
+  // ----- troubleshooting guide -----
+  // Each step: title, steps (instructions), tip, q (question), a: [[answer, next, flag?], ...]. "next" is another step or a result (R_...).
+  // A result: dx (diagnosis), repair (key in TS_REP), refer, soon.
+  var EWH = 'Electric tank style water heater';
+  var TS_REP = {
+    ewh_thermo: { setting: 'Troubleshoot: Electric WH thermostats', def: 415, product: 'Replace upper and lower thermostats', note: '2-yr warranty.' },
+    ewh_elem: { setting: 'Troubleshoot: Electric WH elements + thermostats', def: 635, product: 'Replace both elements and both thermostats', note: 'Best practice. 2-yr warranty.' },
+    ewh_diag: { setting: 'Troubleshoot: Diagnostic', def: 125, product: 'Diagnostic (electrical problem, referred to an electrical partner)', note: '' },
+    diag: { setting: 'Troubleshoot: Diagnostic', def: 125, product: 'Diagnostic', note: 'Waived with a repair.' },
+    x_osv: { setting: 'Troubleshoot: Outdoor shower valve', def: 850, product: 'Replace the outdoor shower valve (or pipe repair to remove the cross connection)', note: '' },
+    x_cart: { setting: 'Troubleshoot: Shower valve cartridge', def: [325, 650], product: 'Replace the shower or tub valve cartridge', note: 'The higher price is rare.' },
+    x_cv1: { setting: 'Troubleshoot: Recirc check valve (1)', def: 385, product: 'Replace 1 check valve on the recirculation crossover', note: '' },
+    x_cv2: { setting: 'Troubleshoot: Recirc check valves (2)', def: 585, product: 'Replace 2 check valves on the recirculation crossover', note: '' },
+    x_tmv: { setting: 'Troubleshoot: Thermostatic cartridge', def: 650, product: 'Replace the thermostatic valve cartridge', note: '' },
+    t_15: { setting: 'Troubleshoot: Rinnai venturi gas valve (code 15)', def: 765, product: 'Replace the venturi gas valve', note: '' },
+    t_11: { setting: 'Troubleshoot: Tankless flame rod cleaning (code 11)', def: 225, product: 'Clean the flame rods and clear the condensate line', note: '' },
+    t_rods: { setting: 'Troubleshoot: Tankless flame rods + igniter', def: 325, product: 'Replace the flame rods and igniter', note: '' },
+    t_gasvalve: { setting: 'Troubleshoot: Tankless gas valve', def: 535, product: 'Replace the gas valve', note: '' },
+    t_fan: { setting: 'Troubleshoot: Tankless fan obstruction', def: 385, product: 'Pull the fan and remove the obstruction', note: '' },
+    t_52: { setting: 'Troubleshoot: Tankless circulation fix (code 52)', def: 585, product: 'Replace crossover tee + check valve, add a bleeder valve before the check valve', note: '' },
+    t_cc: { setting: 'Troubleshoot: Tankless combustion chamber cleaning', def: 1250, product: 'Clean the combustion chamber', note: 'Labor intensive. Not always a good investment.' },
+    t_flow: { setting: 'Troubleshoot: Tankless flow sensor', def: 465, product: 'Replace the flow sensor', note: 'May need to be ordered. Overnight shipping costs extra.' },
+    t_pcb: { setting: 'Troubleshoot: Tankless PC board', def: 850, product: 'Replace the PC board (starting price)', note: 'May need to be ordered. Availability depends on supplier.' },
+    x_nrv: { setting: 'Troubleshoot: Non-return valves', def: 225, product: 'Order and install new non-return valves', note: 'Parts have to be ordered.' }
+  };
+  var TS = {
+    start: { title: 'Hot water', q: 'What kind of water heater is it?', a: [['Tank', 'fuel'], ['Tankless', 't_brand', 'tankless']] },
+    fuel: { title: 'Tank water heater', q: 'Gas, electric or hybrid?', a: [['Electric', 'age'], ['Gas', 'R_SOON'], ['Hybrid heat pump', 'R_SOON']] },
+    age: { title: 'Electric tank', q: 'How old is it?', tip: 'Date is in the serial number',
+      a: [['Under 8 years', 'complaint', 'age_new'], ['8 to 10 years', 'complaint', 'age_mid'], ['Over 10 years', 'complaint', 'age_old']] },
+    complaint: { title: 'Electric tank', q: "What's the customer's complaint?", a: [['No hot water', 'e_volt'], ['Not enough hot water / runs out fast', 'R_SOON'], ['Water too hot', 'R_SOON'],
+      ['Leaking', 'R_SOON'], ['Breaker or reset button keeps tripping', 'R_SOON'], ['Popping or rumbling noises', 'R_SOON'], ['Smelly or discolored water', 'R_SOON']] },
+    e_volt: { title: 'Step 1: Power to the heater',
+      steps: ['Remove upper panel + insulation', 'Meter on volts', 'Test top 2 screws on upper thermostat'],
+      tip: 'Should read 220-240V', q: 'What does the meter read?', a: [['220-240V', 'e_elemv'], ['0V / no power', 'e_breaker']] },
+    e_breaker: { title: 'No power at the heater', steps: ['Check the breaker box'], q: 'Is the water heater breaker on?',
+      a: [['Breaker was off or tripped', 'e_reset'], ['Breaker is on, still no power', 'R_REFER']] },
+    e_reset: { title: 'Reset the breaker', steps: ['Turn breaker back on', 'Retest top 2 thermostat screws'], q: 'What happens?',
+      a: [['Now reads 220-240V', 'e_elemv'], ['Breaker trips again', 'e_up', 'trip'], ['Still no power', 'R_REFER']] },
+    e_elemv: { title: 'Step 2: Power to the upper element',
+      steps: ['Turn upper thermostat all the way up', 'Meter (volts) on upper element screws'],
+      tip: 'Turn thermostat back down when done', q: 'What does the meter read?',
+      a: [['220-240V (power is reaching the element)', 'e_up'], ['0V (thermostat not sending power)', 'e_up', 'thermo_bad']] },
+    e_up: { title: 'Step 3: Check the upper element', steps: ['Power OFF at breaker', 'Disconnect 1 wire on upper element', 'Meter on continuity, leads on both screws', 'Steady tone = good', 'Reconnect wire'],
+      tip: 'Can also check amps with power on', q: 'Does the upper element have continuity?',
+      a: [['Yes, continuous tone', 'e_low'], ['No tone', 'e_low', 'elem_bad']] },
+    e_low: { title: 'Step 4: Check the lower element', steps: ['Power still OFF', 'Disconnect 1 wire on lower element', 'Leads on both screws', 'Reconnect wire'],
+      q: 'Does the lower element have continuity?', a: [['Yes, continuous tone', 'R_EWH'], ['No tone', 'R_EWH', 'elem_bad']] },
+    x_valve: { title: 'Step 5: Check for a cross connection',
+      steps: ['Power, thermostat + elements all good', 'Close cold valve to the heater', 'Open hot side of a nearby 2-handle faucet'],
+      tip: 'No crossover = trickle or nothing', q: 'What happens at the hot side?',
+      a: [['Dies down to a trickle or stops', 'x_tp'], ['Still pressurized water coming out', 'f_osv']] },
+    f_osv: { title: 'Find the cross connection: outdoor shower', steps: ['Check outdoor showers first (most common)'],
+      q: 'Is there an outdoor shower?', a: [['Yes, and it is the culprit', 'R_X_OSV'], ["Yes, but it isn't the culprit", 'f_wash'], ['No outdoor shower', 'f_wash'], ['I already know where it is', 'x_where']] },
+    f_wash: { title: 'Find the cross connection: washer box', steps: ['Turn off 1 washer box valve', 'Recheck hot side of faucet'],
+      q: 'Did that stop the crossover?', a: [['Yes, it stopped', 'R_X_WASH'], ['No, still crossing', 'f_tub']] },
+    f_tub: { title: 'Find the cross connection: shower valves',
+      steps: ['Heater service valve stays off', 'Open largest hot spigot (garden tub)', 'Listen for crossing water', 'Remodeled bath? Check for valve with no cartridge', 'Ear/stethoscope on each shower valve: loudest = culprit'],
+      tip: 'Thermostatic mixing valve: check its non-return valves', q: 'What did you find?',
+      a: [['A noisy shower valve', 'R_X_CART'], ['Remodeled shower valve with no cartridge', 'R_X_NOCART'], ['Thermostatic mixing valve', 'f_tmv'], ["It's not the shower valves", 'f_stops']] },
+    f_tmv: { title: 'Thermostatic mixing valve', steps: ['Check the non-return valves', 'Then the cartridge'], q: 'Which part failed?',
+      a: [['Non-return valves', 'R_X_NRV'], ['Cartridge', 'R_X_TMV']] },
+    f_stops: { title: 'Find the cross connection: faucets', steps: ['Shut off each angle stop, one at a time', 'Recheck hot side after each'],
+      q: 'Did shutting off an angle stop stop the crossover?', a: [['Yes, found it at a faucet', 'R_X_FAUCET'], ['No success', 'f_work']] },
+    f_work: { title: 'Find the cross connection: recent work', steps: ['Ask about recent work (under house, etc.) and check it', 'Check recirc crossover valves'],
+      q: 'What did you find?', a: [['Recirculation crossover: 1 check valve', 'R_X_CV1'], ['Recirculation crossover: 2 check valves', 'R_X_CV2'], ['Something else', 'R_CROSS'], ["Couldn't find it", 'R_X_NOFIND']] },
+    x_where: { title: 'Cross connection found',
+      q: 'Where did you find it?', a: [['Outdoor shower valve', 'R_X_OSV'], ['Shower or tub valve cartridge (single-handle)', 'R_X_CART'],
+        ['Recirculation crossover: 1 check valve', 'R_X_CV1'], ['Recirculation crossover: 2 check valves', 'R_X_CV2'], ['Thermostatic mixing valve', 'f_tmv'], ['Washing machine', 'R_X_WASH'], ['Something else / still looking', 'R_CROSS']] },
+    x_tp: { title: 'Step 6: Check the relief valve', steps: ['Open the relief valve'],
+      tip: 'Should have no flow or pressure', q: 'What happens?',
+      a: [['No flow or pressure', 'R_UNKNOWN'], ['Still full pressure', 'R_BACKWARDS']] },
+    t_brand: { title: 'Tankless', q: 'What brand?', a: [['Navien', 't_age'], ['Takagi', 't_age'], ['Rheem', 't_age'], ['Rinnai', 't_age', 'rinnai'], ['Noritz', 't_age'], ['Eternal', 't_age'], ['A.O. Smith', 't_age'], ['State', 't_age']] },
+    t_age: { title: 'Tankless', q: 'How old is it?', tip: 'Date is in the serial number', a: [['Under 10 years', 't_complaint'], ['Over 10 years', 't_complaint', 't_old']] },
+    t_complaint: { title: 'Tankless', q: "What's the complaint?", a: [['No hot water', 't_screen'], ['Error code on the display', 't_code'], ['Lukewarm / not enough hot water', 't_scope'], ['Loud noise', 't_noise']] },
+    t_screen: { title: 'Tankless: no hot water', q: "What's on the display?", a: [['Error code', 't_code'], ['Screen on, no error code', 't_flow'], ['Screen is blank', 't_power']] },
+    t_code: { title: 'Tankless: error code', tip: 'Brand-by-brand code list coming soon', q: "What's the code?", a: [['11', 't_11'], ['15 (Rinnai)', 'R_T_15'], ['52', 'R_T_52'], ['Other code', 't_start']] },
+    t_11: { title: 'Code 11', steps: ['Clean the flame rods', 'Check the condensate line for a clog'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_T_11'], ['No', 't_start']] },
+    t_start: { title: 'Startup sequence', steps: ['Open a hot tap to start the heater', 'Listen for clicking', 'Look for a flame', 'Smell for gas'], tip: 'Clicking = igniter probably good', q: 'What happens?',
+      a: [['Flame lights, then goes out', 'R_T_FLAME'], ['Gas smell, but no flame', 'R_T_IGN'], ['Clicking, no flame, no gas smell', 'R_T_NOGAS'], ['No clicking at all', 'R_T_IGN']] },
+    t_flow: { title: 'Tankless: no error code', steps: ['Screen on, no error code', 'Open a hot tap', 'Watch for flow on the display'], q: 'Does it detect flow?', a: [['No flow detected', 'R_T_FLOW'], ['Yes, it detects flow', 't_start']] },
+    t_power: { title: 'Tankless: blank screen', steps: ['Check the power', 'Plugged into an outlet? Look for a tripped GFCI', 'No GFCI found? Run an extension cord to a known-good outlet'], q: 'What did you find?',
+      a: [['Works on the extension cord', 'R_T_GFCI'], ['Has power (meter or detector), still dead', 'R_T_PCB']] },
+    t_scope: { title: 'Tankless: lukewarm water', tip: 'Tankless rarely puts out lukewarm water. Lukewarm = likely crossover.', q: 'Whole house or just one shower?', a: [['Just one shower', 'R_X_CART'], ['Whole house', 't_cross']] },
+    t_cross: { title: 'Check for a cross connection', steps: ['Close the cold valve to the heater', 'Open hot side of a nearby 2-handle faucet'], tip: 'No crossover = trickle or nothing', q: 'What happens at the hot side?',
+      a: [['Dies down to a trickle or stops', 'R_T_UNDER'], ['Still pressurized water coming out', 'f_osv']] },
+    t_noise: { title: 'Tankless: loud noise', steps: ['Pull the fan motor', 'Check for a lizard or animal (very common)'], q: 'What did you find?', a: [['Animal or debris in the fan', 'R_T_FAN'], ['Fan is clear', 't_size']] },
+    t_size: { title: 'Tankless: loud noise', steps: ['Fan is clear', 'Check heater size vs. the house', 'Check gas line size'], q: "What's undersized?", a: [['The heater', 'R_T_UNDER'], ['The gas line', 't_psi']] },
+    t_psi: { title: 'Undersized gas line', q: 'Is the house on inches or 2 psi?', a: [['Inches', 'R_T_GASIN'], ['2 psi', 'R_T_GAS2'], ['Propane', 'R_T_PROP']] },
+    R_EWH: { result: true },
+    R_T_15: { result: true, title: 'Rinnai code 15', dx: 'Replace the venturi gas valve.', repair: 't_15' },
+    R_T_52: { result: true, title: 'Code 52', dx: 'Circulation line runs into a dead end or air lock.', repair: 't_52', noReplace: true },
+    R_T_11: { result: true, title: 'Code 11', dx: 'Cleaning the flame rods / condensate line fixed it.', repair: 't_11', noReplace: true },
+    R_T_FLAME: { result: true, title: 'Flame goes out', dx: 'Needs new flame rods, or the combustion chamber cleaned.', repair: 't_rods', repair2: 't_cc' },
+    R_T_IGN: { result: true, title: 'Ignition issue', dx: 'Gas but no flame (or no clicking): ignition issue.', repair: 't_rods' },
+    R_T_NOGAS: { result: true, title: 'No gas at the burner', dx: 'Igniter is probably good. Gas is not reaching the burner.', repair: 't_gasvalve' },
+    R_T_FLOW: { result: true, title: 'Flow sensor', dx: 'Screen on, no code, no flow detected. Replace the flow sensor.', repair: 't_flow' },
+    R_T_GFCI: { result: true, title: 'Power problem', dx: 'Heater works on the extension cord. Find the tripped GFCI or refer to an electrician.', repair: 'diag', noReplace: true },
+    R_T_PCB: { result: true, title: 'PC board', dx: 'Has power, screen still dead. Likely a fried PC board.', repair: 't_pcb' },
+    R_T_UNDER: { result: true, title: 'Heater may be undersized', dx: 'No crossover and no error codes. Heater could be undersized for the house.' },
+    R_T_FAN: { result: true, title: 'Animal in the fan', dx: 'Pull the fan and remove the obstruction.', repair: 't_fan', noReplace: true },
+    R_T_GASIN: { result: true, title: 'Gas line undersized (inches)', dx: 'Custom quote.', points: ['Inspect + inventory all gas appliances', 'Quote regulators on every appliance (incl. tankless) + switch to 2 psi', 'Crawl space? A new gas line is usually cheaper', 'Utility switches to 2 psi once regulators are in'], custom: true, noReplace: true },
+    R_T_GAS2: { result: true, title: 'Gas line undersized (2 psi)', dx: 'Custom quote.', points: ['Already on 2 psi', 'Quote a new gas line'], custom: true, noReplace: true },
+    R_T_PROP: { result: true, title: 'Gas line undersized (propane)', dx: 'Custom quote.', points: ['Propane: we can do the tank side ourselves', 'Inventory appliances, quote regulators / new line'], custom: true, noReplace: true },
+    R_CROSS: { result: true, title: 'Cross connection', dx: 'Cross connection not pinned down. Quote the fix once found.',
+      quote: {}, quoteLabel: 'Quote the fix', noReplace: true },
+    R_X_OSV: { result: true, title: 'Cross connection: outdoor shower', dx: 'Outdoor shower valve is crossing.', repair: 'x_osv', noReplace: true },
+    R_X_CART: { result: true, title: 'Cross connection: shower cartridge', dx: 'Shower/tub cartridge is crossing.', repair: 'x_cart', noReplace: true },
+    R_X_CV1: { result: true, title: 'Cross connection: recirculation', dx: 'Failed recirc check valve.', repair: 'x_cv1', noReplace: true },
+    R_X_CV2: { result: true, title: 'Cross connection: recirculation', dx: 'Failed recirc check valves.', repair: 'x_cv2', noReplace: true },
+    R_X_TMV: { result: true, title: 'Cross connection: mixing valve', dx: 'Thermostatic valve cartridge is crossing.', repair: 'x_tmv', noReplace: true },
+    R_X_NRV: { result: true, title: 'Cross connection: mixing valve', dx: 'Non-return valves failed. Order and install new ones.', repair: 'x_nrv', noReplace: true },
+    R_X_NOCART: { result: true, title: 'Cross connection: no cartridge', dx: 'Shower valve has no cartridge. Install one.', repair: 'x_cart', noReplace: true },
+    R_X_WASH: { result: true, title: 'Cross connection: washing machine', dx: "Crossing through the washer. We don't repair washers. Customer can get it repaired, or we install a new one.", quote: { service: 'Appliance install', app_job: 'Washing machine' }, quoteLabel: 'Price a new washer install', noReplace: true },
+    R_X_FAUCET: { result: true, title: 'Cross connection: faucet', dx: 'Faucet is crossing. Quote repair or replacement.', quote: { service: 'Faucet or sink' }, quoteLabel: 'Quote the faucet fix', noReplace: true },
+    R_X_NOFIND: { result: true, title: "Couldn't find the cross connection", dx: 'Call the office before quoting.', repair: 'diag', noReplace: true },
+    R_BACKWARDS: { result: true, title: 'Piped in backwards', dx: 'Piped backwards (hot right, cold left). Price as a crawl space pipe repair.',
+      quote: { service: 'Pipe leak repair', pipe_kind: 'Water supply line (leaks all the time)', pipe_loc: 'Crawl space' }, quoteLabel: 'Price the pipe repair' },
+    R_UNKNOWN: { result: true, title: 'Everything checks out', dx: 'All checks pass. Call the office before quoting.', repair: 'diag' },
+    R_REFER: { result: true, dx: 'Breaker on, no power at heater. Refer to an electrical partner.', repair: 'ewh_diag', refer: true },
+    R_SOON: { result: true, soon: true }
+  };
+  var tsPath = [], tsFlags = {}, tsFind = [];
+  function tsStart() { tsPath = []; tsFlags = {}; tsFind = []; TSC = null; tsNode('start'); }
+  function tsPrice(key) { // a setting like "415" or a range like "325-650"
+    var r = TS_REP[key], s = String((parsed.settings || {})[r.setting] == null ? '' : parsed.settings[r.setting]).replace(/[$,\s]/g, ''), m = s.match(/^(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?$/);
+    if (m) return m[2] ? [Number(m[1]), Number(m[2])] : Number(m[1]);
+    return r.def;
+  }
+  function tsNode(id) {
+    var n = TS[id];
+    if (n.result) return tsDone(id);
+    var html = '<div class="card"><p class="crumb">Troubleshooting · ' + esc(n.title) + '</p>' +
+      (n.steps ? '<ol class="steps">' + n.steps.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' : '') +
+      (n.tip ? '<div class="tip">' + esc(n.tip) + '</div>' : '') + '<h2 style="margin-bottom:14px">' + esc(n.q) + '</h2>';
+    n.a.forEach(function (a, k) { html += '<button class="opt" data-k="' + k + '">' + esc(a[0]) + '</button>'; });
+    html += '<button class="back" id="bk">← ' + (tsPath.length ? 'Back' : 'Cancel') + '</button></div>';
+    show('ts', 'Troubleshoot', html);
+    app.querySelectorAll('.opt').forEach(function (b) { b.onclick = function () {
+      var a = n.a[+b.dataset.k];
+      tsPath.push({ id: id, flag: a[2] || null }); tsFind.push({ q: (n.steps ? n.title + ': ' : '') + n.q, a: a[0] });
+      if (a[2]) tsFlags[a[2]] = true;
+      tsNode(a[1]);
+    }; });
+    document.getElementById('bk').onclick = function () {
+      if (!tsPath.length) return home();
+      var last = tsPath.pop(); tsFind.pop();
+      tsFlags = {}; tsPath.forEach(function (p) { if (p.flag) tsFlags[p.flag] = true; });
+      tsNode(last.id);
+    };
+  }
+  function tsDone(id) {
+    var n = TS[id];
+    if (n.soon) {
+      show('ts', 'Troubleshoot', '<div class="card"><h2>Coming soon</h2><p>Not built yet. Use New quote.</p>' +
+        '<button class="big" id="nq2">New quote</button><button class="back" id="bk">← Back</button></div>');
+      document.getElementById('nq2').onclick = function () { startQuote(); };
+      document.getElementById('bk').onclick = function () { var last = tsPath.pop(); tsFind.pop(); tsNode(last.id); };
+      return;
+    }
+    var key = n.repair, dx = n.dx, warn = [];
+    if (id === 'R_EWH' && !tsFlags.elem_bad && !tsFlags.thermo_bad && !tsFlags.trip) return tsNode('x_valve');
+    if (id === 'R_EWH') {
+      if (tsFlags.elem_bad) { key = 'ewh_elem'; dx = 'Element failed continuity. Replace both elements + both thermostats.'; }
+      else { key = 'ewh_thermo'; dx = 'Elements good, thermostat not sending power. Replace both thermostats.'; }
+    }
+    if (tsFlags.tankless && !n.noReplace && tsFlags.t_old) warn.push('Over 10 yrs old: suggest a replacement we can install right away.');
+    if (!tsFlags.tankless && !n.refer && !n.noReplace) {
+      if (tsFlags.age_old) warn.push('Over 10 yrs old: we don\'t recommend repairing.');
+      else if (tsFlags.age_mid) warn.push('8-10 yrs old: consider replacing.');
+    }
+    var r = TS_REP[key];
+    function mk(k) { var rr = TS_REP[k], p = tsPrice(k), g = Array.isArray(p); return { key: k, tier: 'Repair', product: rr.product, price: g ? p[0] : p, range: g, low: g ? p[0] : p, high: g ? p[1] : p, siteVisit: false, qty: '', includes: [], messages: warn, note: rr.note, included: [] }; }
+    var pr = r ? tsPrice(key) : 0, rg = Array.isArray(pr);
+    TSC = { repair: key || null, dx: dx, title: n.title || '', points: n.points || [], custom: !!n.custom, refer: !!n.refer, office: !!n.office, tankless: !!tsFlags.tankless, noReplace: !!n.noReplace, findings: tsFind.slice(), quote: n.quote || null, quoteLabel: n.quoteLabel || '', warn: warn,
+      card: r ? { tier: 'Repair', product: r.product, price: rg ? pr[0] : pr, range: rg, low: rg ? pr[0] : pr, high: rg ? pr[1] : pr, siteVisit: false, qty: '', includes: [], messages: warn, note: r.note, included: [] } : null };
+    TSC.cards = r ? [mk(key)].concat(n.repair2 ? [mk(n.repair2)] : []) : [];
+    tsResult();
+  }
+  function repairCardHtml(inPrices) {
+    return TSC.cards.map(function (c, i) {
+      return '<div class="card rcard"><div class="tier">Repair' + (TSC.cards.length > 1 ? ' option ' + (i + 1) : '') + '</div><div class="prod">' + esc(c.product) + '</div>' + priceHtml(c, 0) +
+        c.messages.map(function (m) { return '<p class="msg">' + esc(m) + '</p>'; }).join('') + (c.note ? '<p class="note">' + esc(c.note) + '</p>' : '') +
+        '<div style="height:12px"></div><button class="big" data-rk="' + i + '" style="margin:0">Quote this ' + (TSC.refer ? 'diagnostic' : 'repair') + '</button></div>';
+    }).join('');
+  }
+  function bindRepair(back) {
+    app.querySelectorAll('[data-rk]').forEach(function (b) { b.onclick = function () { var c = TSC.cards[+b.dataset.rk]; TSC.repair = c.key; chosen = c; if (back === tsResult) res = null; sendBack = back; send(); }; });
+  }
+  function tsResult() {
+    var html = '<div class="card"><p class="crumb">Troubleshooting · Result</p><h2>' + esc(TSC.refer ? 'Refer to an electrical partner' : TSC.title || 'Diagnosis') + '</h2><p class="dx">' + esc(TSC.dx) + '</p>' +
+      (TSC.points.length ? '<ul class="steps">' + TSC.points.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '') +
+      TSC.warn.map(function (m) { return TSC.card ? '' : '<p class="msg">' + esc(m) + '</p>'; }).join('') +
+      (TSC.findings.some(function (f) { return /thermostat all the way up/.test(f.q) || /upper element/.test(f.q); }) ? '<div class="tip">Turn the upper thermostat back down</div>' : '') +
+      '<details><summary>Your findings</summary><ul>' + TSC.findings.map(function (f) { return '<li>' + esc(f.q) + ' <b>' + esc(f.a) + '</b></li>'; }).join('') + '</ul></details></div>' +
+      (TSC.card ? repairCardHtml(false) : '') +
+      (TSC.custom ? '<p class="note">Odd job: the office will build a custom quote.</p>' : '') +
+      (TSC.office ? '<div class="card"><div class="tier">Repair</div><p class="note">No set price yet. Call the office for pricing.</p><div style="height:10px"></div><button class="big ghost" id="qf2" style="margin:0">Quote it with New quote</button></div>' : '') +
+      (TSC.quote ? '<button class="big" id="qf">' + esc(TSC.quoteLabel) + '</button>' : '') +
+      (TSC.refer || TSC.quote || TSC.noReplace || (TSC.repair === 'diag' && !TSC.tankless) ? '' : '<div class="card"><div class="tier">Replacement</div><div class="prod">Good and premium replacement options</div><p class="note">A few quick questions, then prices</p>' +
+        '<div style="height:12px"></div><button class="big ghost" id="rp" style="margin:0">Price replacement options</button></div>') +
+      '<button class="back" id="bk">← Back</button>';
+    show('ts', 'Troubleshoot', html);
+    bindRepair(tsResult);
+    var qf = document.getElementById('qf'); if (qf) qf.onclick = function () { A = {}; hist = []; PRE = TSC.quote; ask(nextIdx(0)); };
+    var rp = document.getElementById('rp');
+    if (rp) rp.onclick = function () { A = {}; hist = []; PRE = { service: 'Water heater', leak: 'No', now: TSC.tankless ? 'Tankless water heater' : EWH }; ask(nextIdx(0)); };
+    var qf2 = document.getElementById('qf2'); if (qf2) qf2.onclick = function () { A = {}; hist = []; PRE = {}; ask(nextIdx(0)); };
+    document.getElementById('bk').onclick = function () { var last = tsPath.pop(); tsFind.pop(); tsFlags = {}; tsPath.forEach(function (p) { if (p.flag) tsFlags[p.flag] = true; }); TSC = null; tsNode(last.id); };
+  }
+
   function val(id) { return document.getElementById(id).value.trim(); }
 
   function outbox() {
