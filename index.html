@@ -353,10 +353,10 @@ var Engine = (function () {
   }
 
   // ----- quote flow -----
-  var A = {}, hist = [], res = null, chosen = null, PRE = {}, TSC = null, sendBack = null;
+  var A = {}, hist = [], res = null, chosen = null, PRE = {}, TSC = null, sendBack = null, BOOST = false;
   function factsBefore(i) { var f = {}; for (var k = 0; k < i; k++) { var q = Q[k]; f[q.id] = Engine.visible(q, f) ? A[q.id] : q.ifSkipped; } return f; }
   function nextIdx(i) { for (var k = i; k < Q.length; k++) if (Engine.visible(Q[k], factsBefore(k))) return k; return -1; }
-  function startQuote() { A = {}; hist = []; PRE = {}; TSC = null; ask(nextIdx(0)); }
+  function startQuote() { A = {}; hist = []; PRE = {}; BOOST = false; TSC = null; ask(nextIdx(0)); }
   function ask(i) {
     if (i < 0) return results();
     if (PRE[Q[i].id] != null) { A[Q[i].id] = PRE[Q[i].id]; return ask(nextIdx(i + 1)); }
@@ -380,6 +380,13 @@ var Engine = (function () {
   }
   function results() {
     res = Engine.estimate(parsed, shownAnswers());
+    if (res.ok && BOOST) { // pressure booster = whole house filter questions, priced the same as the HALO 5 option
+      var h5 = res.cards.filter(function (c) { return /halo\s*-?\s*5(?!\d)/i.test(c.product || '') && !/plus|pro|ultra/i.test(c.product || ''); })[0] ||
+        res.cards.filter(function (c) { return /halo\s*-?\s*5(?!\d)/i.test(c.product || ''); })[0] || res.cards[0];
+      var o = {}; for (var k in h5) o[k] = h5[k];
+      o.tier = 'Pressure booster'; o.product = 'Pressure booster'; o.includes = []; o.included = []; o.note = ''; o.messages = [];
+      res.cards = [o]; res.recommended = '';
+    }
     if (!res.ok) { show('quote', 'New quote', '<div class="card"><h2>Can\'t price this</h2><p>' + esc(res.error) + '</p><button class="big" id="bk">Back</button></div>'); document.getElementById('bk').onclick = function () { ask(hist.pop()); }; return; }
     var ex = Engine.extras(parsed, new Date()), html = '';
     if (TSC) html += '<p class="muted" style="margin:0 0 8px">From the troubleshooting guide: ' + esc(TSC.dx) + '</p>' + (TSC.card ? repairCardHtml(true) : '');
@@ -454,10 +461,57 @@ var Engine = (function () {
     t_flow: { setting: 'Troubleshoot: Tankless flow sensor', def: 465, product: 'Replace the flow sensor', note: 'May need to be ordered. Overnight shipping costs extra.' },
     t_sensor: { setting: 'Troubleshoot: Tankless temperature sensor', def: 435, product: 'Replace the temperature sensor (thermistor)', note: '' },
     t_pcb: { setting: 'Troubleshoot: Tankless PC board', def: 850, product: 'Replace the PC board (starting price)', note: 'May need to be ordered. Availability depends on supplier.' },
+    c_gasket: { setting: 'Troubleshoot: Tub overflow gasket', def: 385, product: 'Replace the tub overflow gasket', note: '' },
+    c_spout: { setting: 'Troubleshoot: Tub spout (chrome)', def: 315, product: 'Replace the tub spout (chrome)', note: '' },
+    c_spout2: { setting: 'Troubleshoot: Tub spout (other finish)', def: 362, product: 'Replace the tub spout (brushed nickel, black, bronze, etc.)', note: '' },
+    c_toilet: { setting: 'Troubleshoot: Pull and reset toilet', def: 335, product: 'Pull and reset the toilet', note: '' },
+    c_stop: { setting: 'Troubleshoot: Angle stop + supply line', def: 285, product: 'New angle stop and supply line', note: '' },
+    c_rebuild: { setting: 'Troubleshoot: Major toilet rebuild', def: 325, product: 'Major toilet rebuild: remove the tank, replace all parts, gaskets and bolts', note: 'Also suggest a new toilet.' },
+    c_open: { setting: 'Troubleshoot: Open ceiling investigation', def: 165, product: 'Open the ceiling to investigate (fix quoted after)', note: "We don't do drywall. Suggest our drywall partner." },
+    c_invest: { setting: 'Troubleshoot: Ceiling investigation', def: 125, product: 'Investigation', note: '' },
+    p_obst: { setting: 'Troubleshoot: Find + clear pressure obstruction', def: 165, product: 'Find the obstruction (like a half-closed valve) and clear it', note: '' },
+    p_tune: { setting: 'Troubleshoot: Whole house pressure tune-up', def: 325, product: 'Whole house pressure tune-up', note: 'Check all shower heads and aerators, remove restrictions.' },
+    p_head: { setting: 'Troubleshoot: Shower head restrictions', def: 125, product: 'Remove restrictions from the shower head', note: '' },
+    p_aer: { setting: 'Troubleshoot: Faucet aerator restrictions', def: 125, product: 'Remove restrictions from the faucet aerator', note: '' },
+    p_tee: { setting: 'Troubleshoot: Under-sink tee restrictions', def: 165, product: 'Remove restrictions from the tee under the sink (where the hoses meet)', note: '' },
     x_nrv: { setting: 'Troubleshoot: Non-return valves', def: 225, product: 'Order and install new non-return valves', note: 'Parts have to be ordered.' }
   };
   var TS = {
-    start: { title: 'Hot water', q: 'What kind of water heater is it?', a: [['Tank', 'fuel'], ['Tankless', 't_brand', 'tankless']] },
+    start: { title: 'Troubleshoot', q: 'What are you troubleshooting?', a: [['Hot water', 'hw'], ['Stain on a ceiling', 'c_size'], ['Low water pressure', 'p_scope']] },
+    // low water pressure (owner's steps)
+    p_scope: { title: 'Low pressure', q: 'Whole house or one fixture?', a: [['Whole house', 'p_meter'], ['One fixture', 'p_fix']] },
+    p_meter: { title: 'Low pressure: whole house', steps: ['Check the water meter is open all the way', "Check the house's main shutoff is open all the way"], q: 'Did that fix it?', a: [['Yes, fixed', 'R_P_FIXED'], ['No', 'p_pattern']] },
+    p_pattern: { title: 'Low pressure: whole house', tip: 'Good for a bit, then dies down = obstruction (like a half-closed valve)', q: 'How does the pressure act?', a: [['Good for a bit, then dies down', 'R_P_OBST'], ['Low all the time', 'p_aer']] },
+    p_aer: { title: 'Low pressure: whole house', steps: ['Clean one aerator', 'Retest that faucet'], q: 'Is the pressure normal after cleaning?', a: [['Yes, normal', 'R_P_TUNE'], ['No, still low', 'R_P_LOW']] },
+    p_fix: { title: 'Low pressure: one fixture', q: 'Shower or faucet?', a: [['Shower', 'R_P_SHOWER'], ['Faucet', 'p_faucet']] },
+    p_faucet: { title: 'Low pressure: faucet', steps: ['Remove the aerator restrictions'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_P_AER'], ['No', 'p_tee']] },
+    p_tee: { title: 'Low pressure: faucet', steps: ['Look under the sink for the tee where the hoses meet', 'Remove restrictions from the tee'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_P_TEE'], ['No', 'R_P_LOW1']] },
+    R_P_FIXED: { result: true, title: 'Valve was not fully open', dx: 'Meter or main shutoff was partly closed. Opened it.', repair: 'diag', noReplace: true },
+    R_P_OBST: { result: true, title: 'Obstruction', dx: 'Pressure dies down = obstruction, like a half-closed valve. Find it and clear it.', repair: 'p_obst', noReplace: true },
+    R_P_TUNE: { result: true, title: 'Restricted fixtures', dx: 'Pressure normal after cleaning an aerator. Restrictions throughout the house.', repair: 'p_tune', noReplace: true },
+    R_P_LOW: { result: true, title: 'Low pressure: whole house', dx: 'Meter and main open, steady low pressure, aerator not the cause. Quote a pressure booster.', quote: { service: 'filter' }, quoteLabel: 'Price a pressure booster', boost: true, noReplace: true },
+    R_P_SHOWER: { result: true, title: 'Low pressure: shower', dx: 'Remove the shower head restrictions, or tune up the whole house.', repair: 'p_head', repair2: 'p_tune', noReplace: true },
+    R_P_AER: { result: true, title: 'Low pressure: faucet aerator', dx: 'Aerator restrictions removed.', repair: 'p_aer', noReplace: true },
+    R_P_TEE: { result: true, title: 'Low pressure: under-sink tee', dx: 'Restrictions removed from the tee under the sink.', repair: 'p_tee', noReplace: true },
+    R_P_LOW1: { result: true, title: 'Low pressure: faucet', dx: 'Aerator and under-sink tee cleared, still low. Replace the shut-off valves (angle stops).', quote: { service: 'Faucet or sink', _answer: 'Replace the shut-off valves under the sink' }, quoteLabel: 'Price new shut-off valves', noReplace: true },
+    // ceiling stain (owner's steps)
+    c_size: { title: 'Ceiling stain', tip: 'Always look on the 2nd floor before opening a ceiling', q: 'How big is the stain?', a: [['Bigger than a basketball', 'c_big'], ['Smaller than a basketball', 'c_small']] },
+    c_big: { title: 'Large ceiling stain', steps: ['Check the tub, shower and toilet above', 'Look for water damage on the baseboards'], tip: 'Big + new = usually careless showering (kids / teens) or a guest overflowed the toilet', q: 'Is it still dripping continuously?', a: [['Yes, dripping continuously', 'R_C_OPEN'], ['No', 'c_what']] },
+    c_what: { title: 'Large ceiling stain', steps: ['Ask the customer: bath or shower when it happened?', 'Ask if anyone overflowed the toilet'], q: 'What was used?', a: [['A bath', 'c_bath'], ['A shower', 'R_C_SHOWER'], ['Toilet overflowed', 'R_C_TOILET'], ["Don't know", 'R_C_NOOPEN']] },
+    c_bath: { title: 'Large stain: bath', steps: ['Check the overflow gasket', 'Check the tub spout for water flowing back into the wall'], tip: 'Common after the first bath in a long time', q: 'What did you find?', a: [['Overflow gasket leaking', 'R_C_GASKET'], ['Tub spout leaking into the wall', 'R_C_SPOUT'], ['Nothing found', 'R_C_NOOPEN']] },
+    c_small: { title: 'Small ceiling stain', steps: ['Look for mold or discoloration', 'Check the 2nd floor before opening the ceiling'], tip: 'Small + not dripping = toilet or shower', q: 'Is it still dripping continuously?', a: [['Yes, dripping continuously', 'R_C_OPEN'], ['No', 'c_small2']] },
+    c_small2: { title: 'Small ceiling stain', steps: ['Check the back of the toilet (tank bolts + gaskets)', 'Check the angle stop + supply line', 'Then check under the toilet', 'Then check the shower above'], tip: 'Back of toilet + angle stop often leak onto the ceiling unnoticed', q: 'Where is the leak?', a: [['Angle stop / supply line', 'R_C_STOP'], ['Back of the toilet (tank)', 'R_C_REBUILD'], ['Under the toilet', 'R_C_TOILETLEAK'], ['Shower', 'R_C_SHOWERLEAK'], ["Can't find it", 'R_C_NOOPEN']] },
+    R_C_OPEN: { result: true, title: 'Still dripping: open the ceiling', dx: 'Continuous drip is a good reason to open the ceiling.', points: ['Check the 2nd floor first', 'Open ceiling = $165 investigation', 'Quote the fix once you see it', "We don't do drywall: suggest our drywall partner"], repair: 'c_open', noReplace: true },
+    R_C_SHOWER: { result: true, title: 'Careless showering', dx: 'Water got out of the shower. Not continuous, so no need to open the ceiling.', repair: 'c_invest', noReplace: true },
+    R_C_TOILET: { result: true, title: 'Toilet overflowed', dx: 'One-time overflow. Not continuous, so no need to open the ceiling.', repair: 'c_invest', noReplace: true },
+    R_C_NOOPEN: { result: true, title: 'Source not found', dx: 'Not dripping continuously, so no need to open the ceiling.', repair: 'c_invest', noReplace: true },
+    R_C_GASKET: { result: true, title: 'Tub overflow gasket', dx: 'Overflow gasket is leaking. Replace it. No need to open the ceiling.', repair: 'c_gasket', noReplace: true },
+    R_C_SPOUT: { result: true, title: 'Tub spout', dx: 'Water is flowing back into the wall at the tub spout. Replace the spout. No need to open the ceiling.', repair: 'c_spout', repair2: 'c_spout2', noReplace: true },
+    R_C_STOP: { result: true, title: 'Angle stop / supply line', dx: 'Angle stop or supply line is leaking. Replace both.', repair: 'c_stop', noReplace: true },
+    R_C_REBUILD: { result: true, title: 'Back of the toilet', dx: 'Leaking at the tank. Major rebuild, or suggest a new toilet.', repair: 'c_rebuild', quote: {}, quoteLabel: 'Price a new toilet', noReplace: true },
+    R_C_TOILETLEAK: { result: true, title: 'Toilet leak', dx: 'Leaking under the toilet. Pull and reset it.', repair: 'c_toilet', noReplace: true },
+    R_C_SHOWERLEAK: { result: true, title: 'Shower leak', dx: 'Investigate above first.', points: ['Open ceiling = $165 investigation', 'Quote the fix once you see it (new waste + overflow, pipe repair)', "We don't do drywall: suggest our drywall partner"], repair: 'c_open', noReplace: true },
+    hw: { title: 'Hot water', q: 'What kind of water heater is it?', a: [['Tank', 'fuel'], ['Tankless', 't_brand', 'tankless']] },
     fuel: { title: 'Tank water heater', q: 'Gas, electric or hybrid?', a: [['Electric', 'age'], ['Gas', 'R_SOON'], ['Hybrid heat pump', 'R_SOON']] },
     age: { title: 'Electric tank', q: 'How old is it?', tip: 'Date is in the serial number',
       a: [['Under 8 years', 'complaint', 'age_new'], ['8 to 10 years', 'complaint', 'age_mid'], ['Over 10 years', 'complaint', 'age_old']] },
@@ -629,7 +683,7 @@ var Engine = (function () {
     var r = TS_REP[key];
     function mk(k) { var rr = TS_REP[k], p = tsPrice(k), g = Array.isArray(p); return { key: k, tier: 'Repair', product: rr.product, price: g ? p[0] : p, range: g, low: g ? p[0] : p, high: g ? p[1] : p, siteVisit: false, qty: '', includes: [], messages: warn, note: rr.note, included: [] }; }
     var pr = r ? tsPrice(key) : 0, rg = Array.isArray(pr);
-    TSC = { repair: key || null, dx: dx, title: n.title || '', points: n.points || [], custom: !!n.custom, refer: !!n.refer, office: !!n.office, tankless: !!tsFlags.tankless, noReplace: !!n.noReplace, findings: tsFind.slice(), quote: n.quote || null, quoteLabel: n.quoteLabel || '', warn: warn,
+    TSC = { repair: key || null, dx: dx, title: n.title || '', points: n.points || [], custom: !!n.custom, refer: !!n.refer, office: !!n.office, tankless: !!tsFlags.tankless, noReplace: !!n.noReplace, boost: !!n.boost, findings: tsFind.slice(), quote: n.quote || null, quoteLabel: n.quoteLabel || '', warn: warn,
       card: r ? { tier: 'Repair', product: r.product, price: rg ? pr[0] : pr, range: rg, low: rg ? pr[0] : pr, high: rg ? pr[1] : pr, siteVisit: false, qty: '', includes: [], messages: warn, note: r.note, included: [] } : null };
     TSC.cards = r ? [mk(key)].concat(n.repair2 ? [mk(n.repair2)] : []) : [];
     tsResult();
@@ -659,10 +713,14 @@ var Engine = (function () {
       '<button class="back" id="bk">← Back</button>';
     show('ts', 'Troubleshoot', html);
     bindRepair(tsResult);
-    var qf = document.getElementById('qf'); if (qf) qf.onclick = function () { A = {}; hist = []; PRE = TSC.quote; ask(nextIdx(0)); };
+    var qf = document.getElementById('qf'); if (qf) qf.onclick = function () {
+      A = {}; hist = []; BOOST = !!TSC.boost; PRE = {}; for (var pk in TSC.quote) if (pk !== '_answer') PRE[pk] = TSC.quote[pk];
+      if (TSC.quote._answer) { var aq = Q.filter(function (q) { return q.answers.indexOf(TSC.quote._answer) >= 0; })[0]; if (aq) PRE[aq.id] = TSC.quote._answer; }
+      if (BOOST) { var sq = Q.filter(function (q) { return q.id === 'service'; })[0], fa = sq && (sq.answers.filter(function (x) { return /whole/i.test(x) && /filt/i.test(x); })[0] || sq.answers.filter(function (x) { return /filt/i.test(x); })[0]); PRE = fa ? { service: fa } : {}; if (!fa) toast('Pick the whole house water filter service.'); }
+      ask(nextIdx(0)); };
     var rp = document.getElementById('rp');
-    if (rp) rp.onclick = function () { A = {}; hist = []; PRE = { service: 'Water heater', leak: 'No', now: TSC.tankless ? 'Tankless water heater' : EWH }; ask(nextIdx(0)); };
-    var qf2 = document.getElementById('qf2'); if (qf2) qf2.onclick = function () { A = {}; hist = []; PRE = {}; ask(nextIdx(0)); };
+    if (rp) rp.onclick = function () { A = {}; hist = []; BOOST = false; PRE = { service: 'Water heater', leak: 'No', now: TSC.tankless ? 'Tankless water heater' : EWH }; ask(nextIdx(0)); };
+    var qf2 = document.getElementById('qf2'); if (qf2) qf2.onclick = function () { A = {}; hist = []; BOOST = false; PRE = {}; ask(nextIdx(0)); };
     document.getElementById('bk').onclick = function () { var last = tsPath.pop(); tsFind.pop(); tsFlags = {}; tsPath.forEach(function (p) { if (p.flag) tsFlags[p.flag] = true; }); TSC = null; tsNode(last.id); };
   }
   function val(id) { return document.getElementById(id).value.trim(); }
