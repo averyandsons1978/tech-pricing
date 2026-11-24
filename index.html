@@ -508,7 +508,7 @@ var Engine = (function () {
     R_C_GASKET: { result: true, title: 'Tub overflow gasket', dx: 'Overflow gasket is leaking. Replace it. No need to open the ceiling.', repair: 'c_gasket', noReplace: true },
     R_C_SPOUT: { result: true, title: 'Tub spout', dx: 'Water is flowing back into the wall at the tub spout. Replace the spout. No need to open the ceiling.', repair: 'c_spout', repair2: 'c_spout2', noReplace: true },
     R_C_STOP: { result: true, title: 'Angle stop / supply line', dx: 'Angle stop or supply line is leaking. Replace both.', repair: 'c_stop', noReplace: true },
-    R_C_REBUILD: { result: true, title: 'Back of the toilet', dx: 'Leaking at the tank. Major rebuild, or suggest a new toilet.', repair: 'c_rebuild', quote: {}, quoteLabel: 'Price a new toilet', noReplace: true },
+    R_C_REBUILD: { result: true, title: 'Back of the toilet', dx: 'Leaking at the tank. Major rebuild, or suggest a new toilet.', repair: 'c_rebuild', quote: { service: 'Toilet', _answer: 'Replace my toilet' }, quoteLabel: 'Price a new toilet', noReplace: true },
     R_C_TOILETLEAK: { result: true, title: 'Toilet leak', dx: 'Leaking under the toilet. Pull and reset it.', repair: 'c_toilet', noReplace: true },
     R_C_SHOWERLEAK: { result: true, title: 'Shower leak', dx: 'Investigate above first.', points: ['Open ceiling = $165 investigation', 'Quote the fix once you see it (new waste + overflow, pipe repair)', "We don't do drywall: suggest our drywall partner"], repair: 'c_open', noReplace: true },
     hw: { title: 'Hot water', q: 'What kind of water heater is it?', a: [['Tank', 'fuel'], ['Tankless', 't_brand', 'tankless']] },
@@ -716,7 +716,8 @@ var Engine = (function () {
     var qf = document.getElementById('qf'); if (qf) qf.onclick = function () {
       A = {}; hist = []; BOOST = !!TSC.boost; PRE = {}; for (var pk in TSC.quote) if (pk !== '_answer') PRE[pk] = TSC.quote[pk];
       if (TSC.quote._answer) { var aq = Q.filter(function (q) { return q.answers.indexOf(TSC.quote._answer) >= 0; })[0]; if (aq) PRE[aq.id] = TSC.quote._answer; }
-      if (BOOST) { var sq = Q.filter(function (q) { return q.id === 'service'; })[0], fa = sq && (sq.answers.filter(function (x) { return /whole/i.test(x) && /filt/i.test(x); })[0] || sq.answers.filter(function (x) { return /filt/i.test(x); })[0]); PRE = fa ? { service: fa } : {}; if (!fa) toast('Pick the whole house water filter service.'); }
+      if (BOOST) { var sq = Q.filter(function (q) { return q.id === 'service'; })[0], fa = sq && (sq.answers.filter(function (x) { return /whole/i.test(x) && /filt/i.test(x); })[0] || sq.answers.filter(function (x) { return /filt/i.test(x); })[0]); PRE = fa ? { service: fa } : {}; if (!fa) toast('Pick the whole house water filter service.');
+        Q.forEach(function (q) { var wh = q.answers.filter(function (x) { return /^whole.?house/i.test(x); })[0]; if (wh) PRE[q.id] = wh; else if (/\badd\b/i.test(q.text) && q.answers.indexOf('No') >= 0) PRE[q.id] = 'No'; }); }
       ask(nextIdx(0)); };
     var rp = document.getElementById('rp');
     if (rp) rp.onclick = function () { A = {}; hist = []; BOOST = false; PRE = { service: 'Water heater', leak: 'No', now: TSC.tankless ? 'Tankless water heater' : EWH }; ask(nextIdx(0)); };
