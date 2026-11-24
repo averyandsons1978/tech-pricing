@@ -452,6 +452,7 @@ var Engine = (function () {
     t_52: { setting: 'Troubleshoot: Tankless circulation fix (code 52)', def: 585, product: 'Replace crossover tee + check valve, add a bleeder valve before the check valve', note: '' },
     t_cc: { setting: 'Troubleshoot: Tankless combustion chamber cleaning', def: 1250, product: 'Clean the combustion chamber', note: 'Labor intensive. Not always a good investment.' },
     t_flow: { setting: 'Troubleshoot: Tankless flow sensor', def: 465, product: 'Replace the flow sensor', note: 'May need to be ordered. Overnight shipping costs extra.' },
+    t_sensor: { setting: 'Troubleshoot: Tankless temperature sensor', def: 435, product: 'Replace the temperature sensor (thermistor)', note: '' },
     t_pcb: { setting: 'Troubleshoot: Tankless PC board', def: 850, product: 'Replace the PC board (starting price)', note: 'May need to be ordered. Availability depends on supplier.' },
     x_nrv: { setting: 'Troubleshoot: Non-return valves', def: 225, product: 'Order and install new non-return valves', note: 'Parts have to be ordered.' }
   };
@@ -508,7 +509,7 @@ var Engine = (function () {
     t_screen: { title: 'Tankless: no hot water', q: "What's on the display?", a: [['Error code', 't_code'], ['Screen on, no error code', 't_flow'], ['Screen is blank', 't_power']] },
     t_code: { title: 'Tankless: error code', byFlag: { b_navien: 'c_navien', b_takagi: 'c_takagi', b_rheem: 'c_rheem', b_rinnai: 'c_rinnai', b_noritz: 'c_noritz', b_eternal: 'c_eternal', b_aos: 'c_aos', b_state: 'c_aos' }, q: "What's the code?", a: [['11', 't_11'], ['52', 'R_T_52'], ['Other code', 't_start']] },
     // brand code lists (manufacturer manuals); each code goes to a shared check step below
-    c_navien: { title: 'Navien code', q: "What's the code?", a: [['E003: ignition failure', 'k_ign'], ['E004: false flame', 'k_false'], ['E012: flame loss', 'k_flame'], ['E016: heat exchanger overheat', 'k_scale'], ['E030: exhaust too hot', 'k_vent'], ['E407 / E421 / E432: water temp sensor', 'R_T_SENSOR'], ['E515 / E517: PC board / dip switch', 'R_T_PCB'], ['Other code', 't_start']] },
+    c_navien: { title: 'Navien code', q: "What's the code?", a: [['E003: ignition failure', 'k_ign'], ['E004: false flame', 'k_false'], ['E012: flame loss', 'k_flame_nav'], ['E016: heat exchanger overheat', 'k_scale'], ['E030: exhaust too hot', 'k_vent'], ['E407 / E421 / E432: water temp sensor', 'R_T_SENSOR'], ['E515 / E517: PC board / dip switch', 'R_T_PCB'], ['Other code', 't_start']] },
     c_takagi: { title: 'Takagi code', q: "What's the code?", a: [['031: dip switch setting', 'R_T_DIP'], ['101 / 991: bad combustion (scale)', 'k_scale'], ['111: ignition failure', 'k_ign'], ['121: flame loss', 'k_flame'], ['311 / 321 / 331: water temp sensor', 'R_T_SENSOR'], ['391: air-fuel ratio rod', 'k_flame'], ['441: flow sensor', 'R_T_FLOW'], ['701 / 711: PC board / gas valve circuit', 'R_T_PCB'], ['721: false flame', 'k_false'], ['Other code', 't_start']] },
     c_aos: { title: 'A.O. Smith / State code', tip: '3-digit codes = Takagi-built unit (same codes)', q: "What's the code?", a: [['031: dip switch setting', 'R_T_DIP'], ['101 / 991: bad combustion (scale)', 'k_scale'], ['111: ignition failure', 'k_ign'], ['121: flame loss', 'k_flame'], ['311 / 321 / 331: water temp sensor', 'R_T_SENSOR'], ['391: air-fuel ratio rod', 'k_flame'], ['441: flow sensor', 'R_T_FLOW'], ['701 / 711: PC board / gas valve circuit', 'R_T_PCB'], ['721: false flame', 'k_false'], ['E-code / other', 't_start']] },
     c_rheem: { title: 'Rheem code', q: "What's the code?", a: [['11: no ignition', 'k_ign'], ['12: flame loss', 'k_flame'], ['14: overheat', 'k_scale'], ['29: condensate drain', 'R_T_COND'], ['31 / 32 / 33: water temp sensor', 'R_T_SENSOR'], ['Other code', 't_start']] },
@@ -517,6 +518,7 @@ var Engine = (function () {
     c_eternal: { title: 'Eternal code', q: "What's the code?", a: [['E1: flame stays on (no call)', 'R_T_NOGAS2'], ['E2: ignition failure', 'k_ign'], ['E3: flame lost after lighting', 'k_flame'], ['Other code', 't_start']] },
     // shared manufacturer check steps
     k_ign: { title: 'Ignition failure', steps: ['Gas valve fully open?', 'Check gas pressure (manometer)', 'Clean the flame rod', 'Check igniter + wiring'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_T_FIXED'], ['No', 't_start']] },
+    k_flame_nav: { title: 'Flame loss (Navien E012)', steps: ['Check gas pressure (manometer)', 'Check vent + intake for blockage', 'Check condensate drain + trap (clogged = flame loss)', 'Clean the air filter', 'Clean the flame + ignition rods'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_T_FIXED'], ['Low gas pressure', 't_size'], ['Condensate blocked', 'R_T_COND'], ['No', 'R_T_FLAME']] },
     k_flame: { title: 'Flame loss', steps: ['Check gas pressure (manometer)', 'Check vent + intake for blockage', 'Clean the air filter', 'Clean the flame + ignition rods'], q: 'Did that fix it?', a: [['Yes, fixed', 'R_T_FIXED'], ['Low gas pressure', 't_size'], ['No', 'R_T_FLAME']] },
     k_scale: { title: 'Overheat / scale', steps: ['Flush / descale the heat exchanger', 'Clean the inlet water filter', 'Check recirc / low flow'], q: 'What did you find?', a: [['Needs a flush', 'R_T_SCALE'], ['Clean, still trips', 'R_T_SENSOR']] },
     k_vent: { title: 'Venting / airflow', steps: ['Check vent termination for blockage', 'Check fan for lint, debris, animals', 'Check intake filter'], q: 'What did you find?', a: [['Debris or animal in the fan', 'R_T_FAN'], ['Vent blocked, cleared it', 'R_T_FIXED'], ['All clear', 'k_flame']] },
@@ -541,7 +543,7 @@ var Engine = (function () {
     R_T_IGN: { result: true, title: 'Ignition issue', dx: 'Gas but no flame (or no clicking): ignition issue.', repair: 't_rods' },
     R_T_NOGAS: { result: true, title: 'No gas at the burner', dx: 'Igniter is probably good. Gas is not reaching the burner.', repair: 't_gasvalve' },
     R_T_FIXED: { result: true, title: 'Fixed on site', dx: 'Charge the diagnostic.', repair: 'diag', noReplace: true },
-    R_T_SENSOR: { result: true, title: 'Temperature sensor', dx: 'Replace the faulty sensor (thermistor).', office: true },
+    R_T_SENSOR: { result: true, title: 'Temperature sensor', dx: 'Replace the faulty sensor (thermistor).', repair: 't_sensor' },
     R_T_DIP: { result: true, title: 'Dip switch / settings', dx: 'Set dip switches per the manual for gas type, altitude, vent length.', repair: 'diag', noReplace: true },
     R_T_COND: { result: true, title: 'Condensate drain', dx: 'Clear the condensate line and trap.', repair: 't_11', noReplace: true },
     R_T_SCALE: { result: true, title: 'Scale buildup', dx: 'Flush / descale the heater.', quote: { service: 'Tankless water heater flush' }, quoteLabel: 'Price the flush' },
